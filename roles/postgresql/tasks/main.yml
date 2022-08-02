@@ -1,0 +1,125 @@
+---
+- name: install postgresql
+  yum:
+    name: postgresql
+    state: latest
+
+- name: install postgresql-server
+  yum:
+    name: postgresql-server
+    state: latest
+
+- name: install python-psycopg2
+  yum:
+    name: python-psycopg2
+    state: latest
+
+- name: install ipaddress
+  yum:
+    name: python-ipaddress
+    state: latest
+
+# - name: "Initialize PostgreSQL"
+#   shell: /sbin/service postgresql initdb
+#   become: true
+
+- name: FirewallPorts
+  firewalld:
+    zone: public
+    port: 5432/tcp
+    permanent: true
+    state: "enabled"
+  notify:
+    - Restart firewalld
+
+- name: install libsemanage-python
+  yum:
+    name: libsemanage-python
+    state: latest
+
+- name: postgresql start
+  systemd:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: Set httpd_can_network_connect_db
+  seboolean:
+    name: httpd_can_network_connect_db
+    state: yes
+    persistent: yes
+
+- name: Set listen_addresses.
+  lineinfile: 
+    path: /var/lib/pgsql/data/postgresql.conf
+    regexp: "listen_addresses =" 
+    line: "listen_addresses = '*'" 
+    state: present
+  notify: restart postgres
+  become: true
+
+- name: Postgresql start
+  systemd:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: "Create db user"
+  postgresql_user:
+    state: present
+    name: "{{ db_user }}"
+    password: "{{ db_password }}"
+    role_attr_flags: SUPERUSER,CREATEDB,LOGIN
+  become: true
+  become_user: postgres
+
+- name: Allow connection for the dbuser
+  postgresql_pg_hba:
+    address: 0.0.0.0/0
+    dest: "~/data/pg_hba.conf"
+    contype: host
+    databases: all
+    method: password
+    users: "{{ db_user }}"
+    create: true
+  become: true
+  become_user: postgres
+  notify: restart postgres
+
+- name: Create db
+  postgresql_db:
+    state: present
+    owner: "{{ db_user }}"
+    name: "{{ db_name }}"
+  become: true
+  become_user: postgres
+
+- name: Grant db user access to db
+  postgresql_privs:
+    type: database
+    database: "{{ db_name }}"
+    roles: "{{ db_user }}"
+    grant_option: no
+    privs: all
+  become: true
+  become_user: postgres
+
+- name: Create table
+  postgresql_table:
+    db: "{{ db_name }}"
+    name: "{{ table_name }}"
+    owner: "{{ db_user }}"
+    columns: 
+      - name
+      - count
+  become: true
+  become_user: postgres
+
+- name: Create index
+  postgresql_idx:
+    db: "{{ db_name }}"
+    table: "{{ table_name }}"
+    columns: name,count
+    name: test_idx
+  become: true
+  become_user: postgres

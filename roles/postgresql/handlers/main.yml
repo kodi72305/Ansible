@@ -1,0 +1,9 @@
+- name: restart postgres
+  systemd:
+    name: postgresql
+    state: restarted
+
+- name: Restart firewalld
+  systemd:
+    name: firewalld
+    state: restarted

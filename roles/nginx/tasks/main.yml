@@ -1,0 +1,92 @@
+---
+- name: Install Nginx
+  yum:
+    name=nginx
+    state=latest
+  notify:
+    - nginx systemd
+
+- name: Replace nginx.conf
+  template:
+    src=templates/nginx.conf
+    dest=/etc/nginx/nginx.conf
+
+- name: www
+  file:
+    path: /var/www/{{ virtual_domain }}
+    state: directory
+
+- name: virtual domain in NGINX for RPM
+  vars:
+    fastcgi_pass_path: /var/run/php-fpm/php5-fpm.sock
+  template:
+    src=templates/nginx_vhosts.conf
+    dest=/etc/nginx/conf.d/{{ virtual_domain }}.conf
+  notify:
+    - nginx restart
+
+- name: FirewallPorts
+  firewalld:
+    zone: public
+    port: "{{ item.port }}"
+    permanent: true
+    state: "{{ item.state }}"
+  loop:
+    "{{ port_list }}"
+  notify:
+    - Restart firewalld
+
+- name: deploy index
+  copy:
+    src: index/
+    dest: /var/www/{{ virtual_domain }}/
+    mode: preserve
+
+- name: policycoreutils-python
+  yum:
+    name=policycoreutils-python
+    state=latest
+
+- name: selinux
+  sefcontext:
+    target: '/var/www/{{ virtual_domain }}(/.*)?'
+    setype: httpd_sys_content_t
+    state: present
+    reload: yes
+
+- name: firewall service
+  firewalld:
+    zone: public
+    service: "{{ item.service }}"
+    permanent: true
+    state: "{{ item.state }}"
+  loop:
+     "{{ service_list }}"
+  notify:
+     - Restart firewalld
+
+- name: CertDest
+  file:
+    path: /etc/nginx/cert/{{ virtual_domain }}
+    state: directory
+
+- name: cryptography
+  yum:
+    name: python2-cryptography
+    
+- name: Generate private
+  openssl_privatekey:
+    path: /etc/nginx/cert/{{ virtual_domain }}/{{ virtual_domain }}.key.pem
+
+- name: Generate Certificate Signing Request
+  openssl_csr:
+    path: /etc/nginx/cert/{{ virtual_domain }}/{{ virtual_domain }}.csr
+    privatekey_path: /etc/nginx/cert/{{ virtual_domain }}/{{ virtual_domain }}.key.pem
+    common_name: '{{ virtual_domain }}'
+
+- name: Generate a Self Signed OpenSSL certificate
+  openssl_certificate:
+    path: /etc/nginx/cert/{{ virtual_domain }}/{{ virtual_domain }}.pem
+    privatekey_path: /etc/nginx/cert/{{ virtual_domain }}/{{ virtual_domain }}.key.pem
+    csr_path: /etc/nginx/cert/{{ virtual_domain }}/{{ virtual_domain }}.csr
+    provider: selfsigned

@@ -1,0 +1,17 @@
+---
+- hosts: centbase.local
+  vars:
+    db_user: dbuser
+    db_name: dbase
+    db_password: 12345
+    table_name: table
+  become:
+    true
+  become_method:
+    sudo
+  become_user:
+    root
+  remote_user:
+    kodi
+  roles:
+   - postgresql

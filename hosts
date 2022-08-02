@@ -1,0 +1,2 @@
+centos.local virtual_domain=task.roox ansible_host=centos.local ansible_user=cent ansible_ssh_private_key=/home/kodi/.ansible/key_centos
+centbase.local virtual_domin=task.roox ansible_host=centbase.local ansible_user=cent ansible_ssh_private_key=/home/kodi/.ansible/key_centbase ansible_become_pass=UOqnmnq9
